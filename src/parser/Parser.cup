@@ -1,0 +1,1170 @@
+import java_cup.runtime.Symbol;
+import java_cup.runtime.ComplexSymbolFactory.ComplexSymbol;
+import java_cup.runtime.ComplexSymbolFactory;
+
+import errors.CXSyntaxError;
+import lexer.Lexer;
+import generation.Medium;
+import tree.DefaultTreeNodeSymbol;
+import tree.symbols.*;
+import tree.expressions.*;
+import tree.declarations.*;
+import tree.statements.*;
+import tree.translation_unit.*;
+
+
+
+/* Preliminaries to use the scanner.  
+scan with {: return lexer.next_token(); :};*/
+
+
+parser code {: 
+
+	private Lexer lexer;
+	private Medium medium;
+
+	public Parser(Lexer lex, ComplexSymbolFactory sf, Medium m) {
+		super(lex,sf);
+		lexer = lex;
+		medium = m;
+		medium.newScope();
+	}
+	
+	public Medium getMedium() {
+		return medium;
+	}
+	
+	public void report_error(String message, Object info) {
+	
+		if (info instanceof ComplexSymbol && ((ComplexSymbol)info).value instanceof DefaultTreeNodeSymbol) {
+			medium.error(new CXSyntaxError(message, (DefaultTreeNodeSymbol) ((ComplexSymbol)info).value));
+		} else {
+			medium.error(new CXSyntaxError(message+" ("+info+")"));
+		}
+	}
+:}; 
+
+
+
+/* Terminals (tokens returned by lexer). */
+terminal	TSIdentifier			IDENTIFIER;
+terminal	TSIConstant				I_CONSTANT;
+terminal	TSFConstant				F_CONSTANT;
+terminal	TSStringLiteral			STRING_LITERAL;
+terminal	TSFuncName				FUNC_NAME;
+terminal	TSSizeof				SIZEOF;
+terminal	TSPtrOp					PTR_OP;
+terminal	TSIncOp					INC_OP;
+terminal	TSDecOp					DEC_OP;
+terminal	TSLeftOp				LEFT_OP;
+terminal	TSRightOp				RIGHT_OP;
+terminal	TSLeOp					LE_OP;
+terminal	TSGeOp					GE_OP;
+terminal	TSEqOp					EQ_OP;
+terminal	TSNeOp					NE_OP;
+terminal	TSAndOp					AND_OP;
+terminal	TSOrOp					OR_OP;
+terminal	TSMulAssign				MUL_ASSIGN;
+terminal	TSDivAssign				DIV_ASSIGN;
+terminal	TSModAssign				MOD_ASSIGN;
+terminal	TSAddAssign				ADD_ASSIGN;
+terminal	TSSubAssign				SUB_ASSIGN;
+terminal	TSLeftAssign			LEFT_ASSIGN;
+terminal	TSRightAssign			RIGHT_ASSIGN;
+terminal	TSAndAssign				AND_ASSIGN;
+terminal	TSXorAssign				XOR_ASSIGN;
+terminal	TSOrAssign				OR_ASSIGN;
+terminal	TSTypedefName			TYPEDEF_NAME;
+terminal	TSEnumerationConstant	ENUMERATION_CONSTANT;
+
+terminal	TSTypedef				TYPEDEF;
+terminal	TSExtern				EXTERN;
+terminal	TSStatic				STATIC;
+terminal	TSAuto					AUTO;
+terminal	TSRegister				REGISTER;
+terminal	TSInline				INLINE;
+terminal	TSConst					CONST;
+terminal	TSRestrict				RESTRICT;
+terminal	TSVolatile				VOLATILE;
+terminal	TSBool					BOOL;
+terminal	TSChar					CHAR;
+terminal	TSShort					SHORT;
+terminal	TSInt					INT;
+terminal	TSLong					LONG;
+terminal	TSSigned				SIGNED;
+terminal	TSUnsigned				UNSIGNED;
+terminal	TSFloat					FLOAT;
+terminal	TSDouble				DOUBLE;
+terminal	TSVoid					VOID;
+terminal	TSComplex				COMPLEX;
+terminal	TSImaginary				IMAGINARY;
+terminal	TSStruct				STRUCT;
+terminal	TSUnion					UNION;
+terminal	TSEnum					ENUM;
+terminal	TSEllipsis				ELLIPSIS;
+
+terminal	TSCase					CASE;
+terminal	TSDefault				DEFAULT;
+terminal	TSIf					IF;
+terminal	TSElse					ELSE;
+terminal	TSSwitch				SWITCH;
+terminal	TSWhile					WHILE;
+terminal	TSDo					DO;
+terminal	TSFor					FOR;
+terminal	TSGoto					GOTO;
+terminal	TSContinue				CONTINUE;
+terminal	TSBreak					BREAK;
+terminal	TSReturn				RETURN;
+
+terminal	TSAlignas				ALIGNAS;
+terminal	TSAlignof				ALIGNOF;
+terminal	TSAtomic				ATOMIC;
+terminal	TSGeneric				GENERIC;
+terminal	TSNoreturn				NORETURN;
+terminal	TSStaticAssert			STATIC_ASSERT;
+terminal	TSThreadLocal			THREAD_LOCAL;
+
+
+terminal	TSBraceLeft				BRACE_LEFT;
+terminal	TSBraceRight			BRACE_RIGHT;
+terminal	TSParLeft				PAR_LEFT;
+terminal	TSParRight				PAR_RIGHT;
+terminal	TSBracketLeft			BRACKET_LEFT;
+terminal	TSBracketRight			BRACKET_RIGHT;
+
+terminal	TSSemicolon				SEMICOLON;
+terminal	TSComma					COMMA;
+terminal	TSColon					COLON;
+terminal	TSDot					DOT;
+terminal	TSExcl					EXCL;
+terminal	TSTilde					TILDE;
+terminal	TSQues					QUES;
+
+terminal	TSAssign				ASSIGN;
+terminal	TSSubOp					SUB_OP;
+terminal	TSAddOp					ADD_OP;
+terminal	TSMulOp					MUL_OP;
+terminal	TSDivOp					DIV_OP;
+terminal	TSModOp					MOD_OP;
+terminal	TSLtOp					LT_OP;
+terminal	TSGtOp					GT_OP;
+terminal	TSBandOp				BAND_OP;
+terminal	TSXorOp					XOR_OP;
+terminal	TSBorOp					BOR_OP;
+
+terminal	TSMacro					MACRO;
+terminal	TSMacroType				MACRO_TYPE;
+
+terminal	TSGenerator				GENERATOR;
+terminal	TSYield					YIELD;
+terminal	TSWith					WITH;
+terminal	TSCut					CUT;
+terminal	TSCompOp				COMP_OP;
+terminal	TSSetOp					SET_OP;
+terminal	TSFinally				FINALLY;
+
+
+/* Non-terminals */
+
+non terminal	TPrimaryExpression			primary_expression;
+non terminal	TConstant					constant;
+non terminal	TEnumerationConstant		enumeration_constant;
+non terminal	TString						string;
+non terminal	TGenericSelection			generic_selection;
+non terminal	TGenericAssocList			generic_assoc_list;
+non terminal	TGenericAssociation			generic_association;
+non terminal	TPostfixExpression			postfix_expression;
+non terminal	TArgumentExpressionList		argument_expression_list;
+non terminal	TUnaryExpression			unary_expression;
+non terminal	TCompExpression				comp_expression;
+non terminal	TCompExpressionList			comp_expression_list;
+non terminal	TUnaryOperator				unary_operator;
+non terminal	TCastExpression				cast_expression;
+non terminal	TSetExpression				set_expression;
+non terminal	TMultiplicativeExpression	multiplicative_expression;
+non terminal	TAdditiveExpression			additive_expression;
+non terminal	TShiftExpression			shift_expression;
+non terminal	TRelationalExpression		relational_expression;
+non terminal	TEqualityExpression			equality_expression;
+non terminal	TAndExpression				and_expression;
+non terminal	TExclusiveOrExpression		exclusive_or_expression;
+non terminal	TInclusiveOrExpression		inclusive_or_expression;
+non terminal	TLogicalAndExpression		logical_and_expression;
+non terminal	TLogicalOrExpression		logical_or_expression;
+non terminal	TConditionalExpression		conditional_expression;
+non terminal	TAssignmentExpression		assignment_expression;
+non terminal	TAssignmentOperator			assignment_operator;
+non terminal	TExpression					expression;
+non terminal	TConstantExpression			constant_expression;
+non terminal	TDeclaration				declaration;
+non terminal	TDeclarationSpecifiers		declaration_specifiers;
+non terminal	TInitDeclaratorList			init_declarator_list;
+non terminal	TInitDeclarator				init_declarator;
+non terminal	TStorageClassSpecifier		storage_class_specifier;
+non terminal	TTypeSpecifier				type_specifier;
+non terminal	TMacroArgumentList			macro_argument_list;
+non terminal	TMacroSpecifierList			macro_specifier_list;
+non terminal	TMacroSpecifier				macro_specifier;
+non terminal	TMacroTypeSpecifier			macro_type_specifier;
+non terminal	TStructOrUnionSpecifier		struct_or_union_specifier;
+non terminal	TStructOrUnion				struct_or_union;
+non terminal	TStructDeclarationList		struct_declaration_list;
+non terminal	TStructDeclaration			struct_declaration;
+non terminal	TSpecifierQualifierList		specifier_qualifier_list;
+non terminal	TStructDeclaratorList		struct_declarator_list;
+non terminal	TStructDeclarator			struct_declarator;
+non terminal	TEnumSpecifier				enum_specifier;
+non terminal	TEnumeratorList				enumerator_list;
+non terminal	TEnumerator					enumerator;
+non terminal	TAtomicTypeSpecifier		atomic_type_specifier;
+non terminal	TTypeQualifier				type_qualifier;
+non terminal	TFunctionSpecifier			function_specifier;
+non terminal	TAlignmentSpecifier			alignment_specifier;
+non terminal	TDeclarator					declarator;
+non terminal	TDirectDeclarator			direct_declarator;
+non terminal	TPointerComprehension		pointer_comprehension;
+non terminal	TTypeQualifierList			type_qualifier_list;
+non terminal	TParameterTypeList			parameter_type_list;
+non terminal	TParameterList				parameter_list;
+non terminal	TParameterDeclaration		parameter_declaration;
+non terminal	TIdentifierList				identifier_list;
+non terminal	TTypeName					type_name;
+non terminal	TAbstractDeclarator			abstract_declarator;
+non terminal	TDirectAbstractDeclarator	direct_abstract_declarator;
+non terminal	TInitializer				initializer;
+non terminal	TInitializerList			initializer_list;
+non terminal	TDesignation				designation;
+non terminal	TDesignatorList				designator_list;
+non terminal	TDesignator					designator;
+non terminal	TStaticAssertDeclaration	static_assert_declaration;
+non terminal	TStatement					statement;
+non terminal	TLabeledStatement			labeled_statement;
+non terminal	TFinallyStatement			finally_statement;
+non terminal	TCompoundStatement			compound_statement;
+non terminal	TBlockItemList				block_item_list;
+non terminal	TBlockItem					block_item;
+non terminal	TExpressionStatement		expression_statement;
+non terminal	TSelectionStatement			selection_statement;
+non terminal	TIterationStatement			iteration_statement;
+non terminal	TJumpStatement				jump_statement;
+non terminal	TTranslationUnit			translation_unit;
+non terminal	TExternalDeclaration		external_declaration;
+non terminal	TFunctionDefinition			function_definition;
+non terminal	TDeclarationList			declaration_list;
+
+
+precedence nonassoc SET_OP;
+
+
+/* productions */
+start with translation_unit;
+
+
+
+primary_expression
+	::= IDENTIFIER:i
+		{: RESULT = new TPrimaryExpression(i); :}
+	| constant:c
+		{: RESULT = new TPrimaryExpression(c); :}
+	| string:s
+		{: RESULT = new TPrimaryExpression(s); :}
+	| macro_specifier_list:msl
+		{: RESULT = new TPrimaryExpression(msl); :}
+	| PAR_LEFT:pl expression:e PAR_RIGHT:pr
+		{: RESULT = new TPrimaryExpression(pl, e, pr); :}
+	| generic_selection:gs
+		{: RESULT = new TPrimaryExpression(gs); :}
+	;
+
+constant
+	::= I_CONSTANT:ic
+		{: RESULT = new TConstant(ic); :}
+	| F_CONSTANT:fc
+		{: RESULT = new TConstant(fc); :}
+	| ENUMERATION_CONSTANT:ec	/* after it has been defined as such */
+		{: RESULT = new TConstant(ec); :}
+	;
+
+enumeration_constant
+	::= IDENTIFIER:i	/* before it has been defined as such */
+		{: RESULT = new TEnumerationConstant(i); :}
+	;
+
+string
+	::= STRING_LITERAL:sl
+		{: RESULT = new TString(sl); :}
+	| FUNC_NAME:fn
+		{: RESULT = new TString(fn); :}
+	;
+
+macro_specifier_list
+	::= macro_specifier:ms
+		{: RESULT = new TMacroSpecifierList(ms); :}
+	| macro_specifier_list:msl macro_specifier:ms
+		{: RESULT = new TMacroSpecifierList(msl, ms); :}
+	;
+
+macro_specifier
+	::= MACRO:m IDENTIFIER:i PAR_LEFT:pl PAR_RIGHT:pr
+		{: RESULT = new TMacroSpecifier(m, i, pl, pr); :}
+	| MACRO:m IDENTIFIER:i PAR_LEFT:pl macro_argument_list:mal PAR_RIGHT:pr
+		{: RESULT = new TMacroSpecifier(m, i, pl, mal, pr); :}
+	;
+
+macro_argument_list
+	::= assignment_expression:ae
+		{: RESULT = new TMacroArgumentList(ae); :}
+	| parameter_declaration:pd
+		{: RESULT = new TMacroArgumentList(pd); :}
+	| macro_argument_list:mal COMMA:c assignment_expression:ae
+		{: RESULT = new TMacroArgumentList(mal, c, ae); :}
+	| macro_argument_list:mal COMMA:c parameter_declaration:pd
+		{: RESULT = new TMacroArgumentList(mal, c, pd); :}
+	;
+
+generic_selection
+	::= GENERIC:g PAR_LEFT:pl assignment_expression:ae COMMA:c generic_assoc_list:gal PAR_RIGHT:pr
+		{: RESULT = new TGenericSelection(g, pl, ae, c, gal, pr); :}
+	;
+
+generic_assoc_list
+	::= generic_association:ga
+		{: RESULT = new TGenericAssocList(ga); :}
+	| generic_assoc_list:gal COMMA:c generic_association:ga
+		{: RESULT = new TGenericAssocList(gal, c, ga); :}
+	;
+
+generic_association
+	::= type_name:tn COLON:c assignment_expression:ae
+		{: RESULT = new TGenericAssociation(tn, c, ae); :}
+	| DEFAULT:d COLON:c assignment_expression:ae
+		{: RESULT = new TGenericAssociation(d, c, ae); :}
+	;
+
+postfix_expression
+	::= primary_expression:pe
+		{: RESULT = new TPostfixExpressionP(pe); :}
+	| postfix_expression:pe BRACKET_LEFT:bl expression:e BRACKET_RIGHT:br
+		{: RESULT = new TPostfixExpressionA(pe, bl, e, br); :}
+	| postfix_expression:pe PAR_LEFT:pl PAR_RIGHT:pr
+		{: RESULT = new TPostfixExpressionIv(pe, pl, pr); :}
+	| postfix_expression:pe PAR_LEFT:pl argument_expression_list:ael PAR_RIGHT:pr
+		{: RESULT = new TPostfixExpressionIv(pe, pl, ael, pr); :}
+	| postfix_expression:pe DOT:d IDENTIFIER:i
+		{: RESULT = new TPostfixExpressionM(pe, d, i); :}
+	| postfix_expression:pe PTR_OP:p IDENTIFIER:i
+		{: RESULT = new TPostfixExpressionM(pe, p, i); :}
+	| postfix_expression:pe INC_OP:i
+		{: RESULT = new TPostfixExpressionID(pe, i); :}
+	| postfix_expression:pe DEC_OP:d
+		{: RESULT = new TPostfixExpressionID(pe, d); :}
+	| PAR_LEFT:pl type_name:tn PAR_RIGHT:pr BRACE_LEFT:bl initializer_list:il BRACE_RIGHT:br
+		{: RESULT = new TPostfixExpressionIz(pl, tn, pr, bl, il, br); :}
+	| PAR_LEFT:pl type_name:tn PAR_RIGHT:pr BRACE_LEFT:bl initializer_list:il COMMA:c BRACE_RIGHT:br
+		{: RESULT = new TPostfixExpressionIz(pl, tn, pr, bl, il, c, br); :}
+	;
+
+argument_expression_list
+	::= assignment_expression:ae
+		{: RESULT = new TArgumentExpressionList(ae); :}
+	| argument_expression_list:ael COMMA:c assignment_expression:ae
+		{: RESULT = new TArgumentExpressionList(ael, c, ae); :}
+	;
+
+unary_expression
+	::= postfix_expression:pe
+		{: RESULT = new TUnaryExpression(pe); :}
+	| INC_OP:i unary_expression:ue
+		{: RESULT = new TUnaryExpression(i, ue); :}
+	| DEC_OP:d unary_expression:ue
+		{: RESULT = new TUnaryExpression(d, ue); :}
+	| unary_operator:uo cast_expression:ce
+		{: RESULT = new TUnaryExpression(uo, ce); :}
+	| SIZEOF:s unary_expression:ue
+		{: RESULT = new TUnaryExpression(s, ue); :}
+	| SIZEOF:s PAR_LEFT:pl type_name:tn PAR_RIGHT:pr
+		{: RESULT = new TUnaryExpression(s, pl, tn, pr); :}
+	| ALIGNOF:a PAR_LEFT:pl type_name:tn PAR_RIGHT:pr
+		{: RESULT = new TUnaryExpression(a, pl, tn, pr); :}
+	| COMP_OP:c PAR_LEFT:pl type_name:tn PAR_RIGHT:pr comp_expression:ce
+		{: RESULT = new TUnaryExpression(c, pl, tn, pr, ce); :}
+	;
+
+comp_expression
+	::= cast_expression:ce
+		{: RESULT = new TCompExpression(ce); :}
+	| BRACE_LEFT:bl BRACE_RIGHT:br
+		{: RESULT = new TCompExpression(bl, br); :}
+	| BRACE_LEFT:bl comp_expression_list:cel BRACE_RIGHT:br
+		{: RESULT = new TCompExpression(bl, cel, br); :}
+	| BRACE_LEFT:bl comp_expression_list:cel COMMA:c BRACE_RIGHT:br
+		{: RESULT = new TCompExpression(bl, cel, c, br); :}
+	;
+
+comp_expression_list
+	::= assignment_expression:ae
+		{: RESULT = new TCompExpressionList(ae); :}
+	| comp_expression_list:cel COMMA:c assignment_expression:ae
+		{: RESULT = new TCompExpressionList(cel, c, ae); :}
+	;
+
+unary_operator
+	::= BAND_OP:b
+		{: RESULT = new TUnaryOperator(b); :}
+	| MUL_OP:m
+		{: RESULT = new TUnaryOperator(m); :}
+	| ADD_OP:a
+		{: RESULT = new TUnaryOperator(a); :}
+	| SUB_OP:s
+		{: RESULT = new TUnaryOperator(s); :}
+	| TILDE:t
+		{: RESULT = new TUnaryOperator(t); :}
+	| EXCL:e
+		{: RESULT = new TUnaryOperator(e); :}
+	// split operators
+	| BOR_OP:b
+		{: RESULT = new TUnaryOperator(b); :}
+	;
+
+set_expression
+	::= unary_expression:ue
+		{: RESULT = new TSetExpressionU(ue); :}
+	| unary_expression:ue1 SET_OP:s unary_expression:ue2
+		{: RESULT = new TSetExpressionSO(ue1, s, ue2); :}
+	| unary_expression:ue SET_OP:s
+		{: RESULT = new TSetExpressionSO(ue, s); :}
+	;
+
+cast_expression
+	::= set_expression:se
+		{: RESULT = new TCastExpression(se); :}
+	| PAR_LEFT:pl type_name:tn PAR_RIGHT:pr cast_expression:ce
+		{: RESULT = new TCastExpression(pl, tn, pr, ce); :}
+	;
+
+multiplicative_expression
+	::= cast_expression:ce
+		{: RESULT = new TMultiplicativeExpression(ce); :}
+	| multiplicative_expression:me MUL_OP:m cast_expression:ce
+		{: RESULT = new TMultiplicativeExpression(me, m, ce); :}
+	| multiplicative_expression:me DIV_OP:d cast_expression:ce
+		{: RESULT = new TMultiplicativeExpression(me, d, ce); :}
+	| multiplicative_expression:me MOD_OP:m cast_expression:ce
+		{: RESULT = new TMultiplicativeExpression(me, m, ce); :}
+	;
+
+additive_expression
+	::= multiplicative_expression:me
+		{: RESULT = new TAdditiveExpression(me); :}
+	| additive_expression:ae ADD_OP:a multiplicative_expression:me
+		{: RESULT = new TAdditiveExpression(ae, a, me); :}
+	| additive_expression:ae SUB_OP:s multiplicative_expression:me
+		{: RESULT = new TAdditiveExpression(ae, s, me); :}
+	;
+
+shift_expression
+	::= additive_expression:ae
+		{: RESULT = new TShiftExpression(ae); :}
+	| shift_expression:se LEFT_OP:l additive_expression:ae
+		{: RESULT = new TShiftExpression(se, l, ae); :}
+	| shift_expression:se RIGHT_OP:r additive_expression:ae
+		{: RESULT = new TShiftExpression(se, r, ae); :}
+	;
+
+relational_expression
+	::= shift_expression:se
+		{: RESULT = new TRelationalExpression(se); :}
+	| relational_expression:re LT_OP:l shift_expression:se
+		{: RESULT = new TRelationalExpression(re, l, se); :}
+	| relational_expression:re GT_OP:g shift_expression:se
+		{: RESULT = new TRelationalExpression(re, g, se); :}
+	| relational_expression:re LE_OP:l shift_expression:se
+		{: RESULT = new TRelationalExpression(re, l, se); :}
+	| relational_expression:re GE_OP:g shift_expression:se
+		{: RESULT = new TRelationalExpression(re, g, se); :}
+	;
+
+equality_expression
+	::= relational_expression:re
+		{: RESULT = new TEqualityExpression(re); :}
+	| equality_expression:ee EQ_OP:e relational_expression:re
+		{: RESULT = new TEqualityExpression(ee, e, re); :}
+	| equality_expression:ee NE_OP:n relational_expression:re
+		{: RESULT = new TEqualityExpression(ee, n, re); :}
+	;
+
+and_expression
+	::= equality_expression:ee
+		{: RESULT = new TAndExpression(ee); :}
+	| and_expression:ae BAND_OP:b equality_expression:ee
+		{: RESULT = new TAndExpression(ae, b, ee); :}
+	;
+
+exclusive_or_expression
+	::= and_expression:ae
+		{: RESULT = new TExclusiveOrExpression(ae); :}
+	| exclusive_or_expression:eoe XOR_OP:x and_expression:ae
+		{: RESULT = new TExclusiveOrExpression(eoe, x, ae); :}
+	;
+
+inclusive_or_expression
+	::= exclusive_or_expression:eoe
+		{: RESULT = new TInclusiveOrExpression(eoe); :}
+	| inclusive_or_expression:ioe BOR_OP:b exclusive_or_expression:eoe
+		{: RESULT = new TInclusiveOrExpression(ioe, b, eoe); :}
+	;
+
+logical_and_expression
+	::= inclusive_or_expression:ioe
+		{: RESULT = new TLogicalAndExpression(ioe); :}
+	| logical_and_expression:lae AND_OP:a inclusive_or_expression:ioe
+		{: RESULT = new TLogicalAndExpression(lae, a, ioe); :}
+	;
+
+logical_or_expression
+	::= logical_and_expression:lae
+		{: RESULT = new TLogicalOrExpression(lae); :}
+	| logical_or_expression:loe OR_OP:o logical_and_expression:lae
+		{: RESULT = new TLogicalOrExpression(loe, o, lae); :}
+	;
+
+conditional_expression
+	::= logical_or_expression:loe
+		{: RESULT = new TConditionalExpression(loe); :}
+	| logical_or_expression:loe QUES:q expression:e COLON:c conditional_expression:ce
+		{: RESULT = new TConditionalExpression(loe, q, e, c, ce); :}
+	;
+
+assignment_expression
+	::= conditional_expression:ce
+		{: RESULT = new TAssignmentExpression(ce); :}
+	| unary_expression:ue assignment_operator:ao assignment_expression:ae
+		{: RESULT = new TAssignmentExpression(ue, ao, ae); :}
+	;
+
+assignment_operator
+	::= ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| MUL_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| DIV_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| MOD_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| ADD_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| SUB_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| LEFT_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| RIGHT_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| AND_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| XOR_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	| OR_ASSIGN:a
+		{: RESULT = new TAssignmentOperator(a); :}
+	;
+
+expression
+	::= assignment_expression:ae
+		{: RESULT = new TExpression(ae); :}
+	| expression:e COMMA:c assignment_expression:ae
+		{: RESULT = new TExpression(e, c, ae); :}
+	;
+
+constant_expression
+	::= conditional_expression:ce	/* with constraints */
+		{: RESULT = new TConstantExpression(ce); :}
+	;
+
+declaration
+	::= declaration_specifiers:ds SEMICOLON:s
+		{: RESULT = new TDeclarationDS(ds, s); :}
+	| declaration_specifiers:ds init_declarator_list:idl {: 
+		if (ds.containsTypedef()) {
+			for (String name : idl.getNewTypeNames()) {
+				parser.getMedium().addType(name);
+			}
+		}
+	:} SEMICOLON:s
+		{: RESULT = new TDeclarationDSIDL(ds, idl, s); :}
+	| static_assert_declaration:sad
+		{: RESULT = new TDeclarationSAD(sad); :}
+	;
+
+declaration_specifiers
+	::= storage_class_specifier:scs declaration_specifiers:ds
+		{: RESULT = new TDeclarationSpecifiers(scs, ds); :}
+	| storage_class_specifier:scs
+		{: RESULT = new TDeclarationSpecifiers(scs); :}
+	| type_specifier:ts declaration_specifiers:ds
+		{: RESULT = new TDeclarationSpecifiers(ts, ds); :}
+	| type_specifier:ts
+		{: RESULT = new TDeclarationSpecifiers(ts); :}
+	| type_qualifier:tq declaration_specifiers:ds
+		{: RESULT = new TDeclarationSpecifiers(tq, ds); :}
+	| type_qualifier:tq
+		{: RESULT = new TDeclarationSpecifiers(tq); :}
+	| function_specifier:fs declaration_specifiers:ds
+		{: RESULT = new TDeclarationSpecifiers(fs, ds); :}
+	| function_specifier:fs
+		{: RESULT = new TDeclarationSpecifiers(fs); :}
+	| alignment_specifier:as declaration_specifiers:ds
+		{: RESULT = new TDeclarationSpecifiers(as, ds); :}
+	| alignment_specifier:as
+		{: RESULT = new TDeclarationSpecifiers(as); :}
+	;
+
+init_declarator_list
+	::= init_declarator:id
+		{: RESULT = new TInitDeclaratorList(id); :}
+	| init_declarator_list:idl COMMA:c init_declarator:id
+		{: RESULT = new TInitDeclaratorList(idl, c, id); :}
+	;
+
+init_declarator
+	::= declarator:d ASSIGN:a initializer:i
+		{: RESULT = new TInitDeclarator(d, a, i); :}
+	| declarator:d
+		{: RESULT = new TInitDeclarator(d); :}
+	| pointer_comprehension TYPEDEF_NAME
+		{: RESULT = new TInitDeclarator(new TDeclarator(new TDirectDeclaratorI(new TSIdentifier("")))); :}
+	;
+
+storage_class_specifier
+	::= TYPEDEF:s	/* identifiers must be flagged as TYPEDEF_NAME */
+		{: RESULT = new TStorageClassSpecifier(s); :}
+	| EXTERN:s
+		{: RESULT = new TStorageClassSpecifier(s); :}
+	| STATIC:s
+		{: RESULT = new TStorageClassSpecifier(s); :}
+	| THREAD_LOCAL:s
+		{: RESULT = new TStorageClassSpecifier(s); :}
+	| AUTO:s
+		{: RESULT = new TStorageClassSpecifier(s); :}
+	| REGISTER:s
+		{: RESULT = new TStorageClassSpecifier(s); :}
+	;
+
+type_specifier
+	::= VOID:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| CHAR:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| SHORT:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| INT:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| LONG:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| FLOAT:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| DOUBLE:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| SIGNED:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| UNSIGNED:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| BOOL:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| COMPLEX:t
+		{: RESULT = new TTypeSpecifier(t); :}
+	| IMAGINARY:t	  	/* non-mandated extension */
+		{: RESULT = new TTypeSpecifier(t); :}
+	| atomic_type_specifier:ats
+		{: RESULT = new TTypeSpecifier(ats); :}
+	| struct_or_union_specifier:sous
+		{: RESULT = new TTypeSpecifier(sous); :}
+	| enum_specifier:es
+		{: RESULT = new TTypeSpecifier(es); :}
+	| TYPEDEF_NAME:t	/* after it has been defined as such */
+		{: RESULT = new TTypeSpecifier(t); :}
+	| macro_type_specifier:mts
+		{: RESULT = new TTypeSpecifier(mts); :}
+	;
+
+macro_type_specifier
+	::= MACRO_TYPE:mt IDENTIFIER:i PAR_LEFT:pl PAR_RIGHT:pr
+		{: RESULT = new TMacroTypeSpecifier(mt, i, pl, pr); :}
+	| MACRO_TYPE:mt IDENTIFIER:i PAR_LEFT:pl macro_argument_list:mal PAR_RIGHT:pr
+		{: RESULT = new TMacroTypeSpecifier(mt, i, pl, mal, pr); :}
+	;
+
+struct_or_union_specifier
+	::= struct_or_union:sou BRACE_LEFT:bl struct_declaration_list:sdl BRACE_RIGHT:br
+		{: RESULT = new TStructOrUnionSpecifier(sou, bl, sdl, br); :}
+	| struct_or_union:sou IDENTIFIER:i BRACE_LEFT:bl struct_declaration_list:sdl BRACE_RIGHT:br
+		{: RESULT = new TStructOrUnionSpecifier(sou, i, bl, sdl, br); :}
+	| struct_or_union:sou IDENTIFIER:i
+		{: RESULT = new TStructOrUnionSpecifier(sou, i); :}
+	| struct_or_union:sou TYPEDEF_NAME:t
+		{: RESULT = new TStructOrUnionSpecifier(sou, t); :}
+	;
+
+struct_or_union
+	::= STRUCT:s
+		{: RESULT = new TStructOrUnion(s); :}
+	| UNION:u
+		{: RESULT = new TStructOrUnion(u); :}
+	;
+
+struct_declaration_list
+	::= struct_declaration:sd
+		{: RESULT = new TStructDeclarationList(sd); :}
+	| struct_declaration_list:sdl struct_declaration:sd
+		{: RESULT = new TStructDeclarationList(sdl, sd); :}
+	;
+
+struct_declaration
+	::= specifier_qualifier_list:sql SEMICOLON:s	/* for anonymous struct/union */
+		{: RESULT = new TStructDeclarationSQL(sql, s); :}
+	| specifier_qualifier_list:sql struct_declarator_list:sdl SEMICOLON:s
+		{: RESULT = new TStructDeclarationSQLSDL(sql, sdl, s); :}
+	| static_assert_declaration:sad
+		{: RESULT = new TStructDeclarationSAD(sad); :}
+	;
+
+specifier_qualifier_list
+	::= type_specifier:ts specifier_qualifier_list:sql
+		{: RESULT = new TSpecifierQualifierList(ts, sql); :}
+	| type_specifier:ts
+		{: RESULT = new TSpecifierQualifierList(ts); :}
+	| type_qualifier:tq specifier_qualifier_list:sql
+		{: RESULT = new TSpecifierQualifierList(tq, sql); :}
+	| type_qualifier:tq
+		{: RESULT = new TSpecifierQualifierList(tq); :}
+	;
+
+struct_declarator_list
+	::= struct_declarator:sd
+		{: RESULT = new TStructDeclaratorList(sd); :}
+	| struct_declarator_list:sdl COMMA:c struct_declarator:sd
+		{: RESULT = new TStructDeclaratorList(sdl, c, sd); :}
+	;
+
+struct_declarator
+	::= COLON:c constant_expression:ce
+		{: RESULT = new TStructDeclarator(c, ce); :}
+	| declarator:d COLON:c constant_expression:ce
+		{: RESULT = new TStructDeclarator(d, c, ce); :}
+	| declarator:d
+		{: RESULT = new TStructDeclarator(d); :}
+	;
+
+enum_specifier
+	::= ENUM:e BRACE_LEFT:bl enumerator_list:el BRACE_RIGHT:br
+		{: RESULT = new TEnumSpecifier(e, bl, el, br); :}
+	| ENUM:e BRACE_LEFT:bl enumerator_list:el COMMA:c BRACE_RIGHT:br
+		{: RESULT = new TEnumSpecifier(e, bl, el, c, br); :}
+	| ENUM:e IDENTIFIER:i BRACE_LEFT:bl enumerator_list:el BRACE_RIGHT:br
+		{: RESULT = new TEnumSpecifier(e, i, bl, el, br); :}
+	| ENUM:e IDENTIFIER:i BRACE_LEFT:bl enumerator_list:el COMMA:c BRACE_RIGHT:br
+		{: RESULT = new TEnumSpecifier(e, i, bl, el, c, br); :}
+	| ENUM:e IDENTIFIER:i
+		{: RESULT = new TEnumSpecifier(e, i); :}
+	;
+
+enumerator_list
+	::= enumerator:e
+		{: RESULT = new TEnumeratorList(e); :}
+	| enumerator_list:el COMMA:c enumerator:e
+		{: RESULT = new TEnumeratorList(el, c, e); :}
+	;
+
+enumerator	/* identifiers must be flagged as ENUMERATION_CONSTANT */
+	::= enumeration_constant:ec ASSIGN:a constant_expression:ce
+		{: RESULT = new TEnumerator(ec, a, ce); :}
+	| enumeration_constant:ec
+		{: RESULT = new TEnumerator(ec); :}
+	;
+
+atomic_type_specifier
+	::= ATOMIC:a PAR_LEFT:pl type_name:tn PAR_RIGHT:pr
+		{: RESULT = new TAtomicTypeSpecifier(a, pl, tn, pr); :}
+	;
+
+type_qualifier
+	::= CONST:t
+		{: RESULT = new TTypeQualifier(t); :}
+	| RESTRICT:t
+		{: RESULT = new TTypeQualifier(t); :}
+	| VOLATILE:t
+		{: RESULT = new TTypeQualifier(t); :}
+	| ATOMIC:t
+		{: RESULT = new TTypeQualifier(t); :}
+	;
+
+function_specifier
+	::= INLINE:f
+		{: RESULT = new TFunctionSpecifier(f); :}
+	| NORETURN:f
+		{: RESULT = new TFunctionSpecifier(f); :}
+	;
+
+alignment_specifier
+	::= ALIGNAS:a PAR_LEFT:pl type_name:tn PAR_RIGHT:pr
+		{: RESULT = new TAlignmentSpecifier(a, pl, tn, pr); :}
+	| ALIGNAS:a PAR_LEFT:pl constant_expression:ce PAR_RIGHT:pr
+		{: RESULT = new TAlignmentSpecifier(a, pl, ce, pr); :}
+	;
+
+declarator
+	::= pointer_comprehension:p direct_declarator:dd
+		{: RESULT = new TDeclarator(p, dd); :}
+	| direct_declarator:dd
+		{: RESULT = new TDeclarator(dd); :}
+	;
+
+direct_declarator
+	::= IDENTIFIER:i
+		{: RESULT = new TDirectDeclaratorI(i); :}
+		
+	| PAR_LEFT:pl declarator:d PAR_RIGHT:pr
+		{: RESULT = new TDirectDeclaratorD(pl, d, pr); :}
+		
+	| direct_declarator:dd BRACKET_LEFT:bl BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl MUL_OP:m BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, m, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl STATIC:s type_qualifier_list:tql assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, s, tql, ae, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl STATIC:s assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, s, ae, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl type_qualifier_list:tql MUL_OP:m BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, tql, m, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl type_qualifier_list:tql STATIC:s assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, tql, s, ae, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl type_qualifier_list:tql assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, tql, ae, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl type_qualifier_list:tql BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, tql, br); :}
+	| direct_declarator:dd BRACKET_LEFT:bl assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectDeclaratorA(dd, bl, ae, br); :}
+		
+	| direct_declarator:dd PAR_LEFT:pl parameter_type_list:ptl PAR_RIGHT:pr
+		{: RESULT = new TDirectDeclaratorF(dd, pl, ptl, pr); :}
+	| direct_declarator:dd PAR_LEFT:pl PAR_RIGHT:pr
+		{: RESULT = new TDirectDeclaratorF(dd, pl, pr); :}
+	| direct_declarator:dd PAR_LEFT:pl identifier_list:il PAR_RIGHT:pr
+		{: RESULT = new TDirectDeclaratorF(dd, pl, il, pr); :}
+		
+	// generator function declarations
+	| direct_declarator:dd GENERATOR:g
+		{: RESULT = new TDirectDeclaratorG(dd, g); :}
+	;
+
+pointer_comprehension
+	::= MUL_OP:m type_qualifier_list:tql pointer_comprehension:p
+		{: RESULT = new TPointerComprehension(m, tql, p); :}
+	| MUL_OP:m type_qualifier_list:tql
+		{: RESULT = new TPointerComprehension(m, tql); :}
+	| MUL_OP:m pointer_comprehension:p
+		{: RESULT = new TPointerComprehension(m, p); :}
+	| MUL_OP:m
+		{: RESULT = new TPointerComprehension(m); :}
+	// comprehensions
+	| COMP_OP:c type_qualifier_list:tql pointer_comprehension:p
+		{: RESULT = new TPointerComprehension(c, tql, p); :}
+	| COMP_OP:c type_qualifier_list:tql
+		{: RESULT = new TPointerComprehension(c, tql); :}
+	| COMP_OP:c pointer_comprehension:p
+		{: RESULT = new TPointerComprehension(c, p); :}
+	| COMP_OP:c
+		{: RESULT = new TPointerComprehension(c); :}
+	;
+
+type_qualifier_list
+	::= type_qualifier:tq
+		{: RESULT = new TTypeQualifierList(tq); :}
+	| type_qualifier_list:tql type_qualifier:tq
+		{: RESULT = new TTypeQualifierList(tql, tq); :}
+	;
+
+
+parameter_type_list
+	::= parameter_list:pl COMMA:c ELLIPSIS:e
+		{: RESULT = new TParameterTypeList(pl, c, e); :}
+	| parameter_list:pl
+		{: RESULT = new TParameterTypeList(pl); :}
+	;
+
+parameter_list
+	::= parameter_declaration:pd
+		{: RESULT = new TParameterList(pd); :}
+	| parameter_list:pl COMMA:c parameter_declaration:pd
+		{: RESULT = new TParameterList(pl, c, pd); :}
+	;
+
+parameter_declaration
+	::= declaration_specifiers:ds declarator:d
+		{: RESULT = new TParameterDeclaration(ds, d); :}
+	| declaration_specifiers:ds abstract_declarator:ad
+		{: RESULT = new TParameterDeclaration(ds, ad); :}
+	| declaration_specifiers:ds
+		{: RESULT = new TParameterDeclaration(ds); :}
+	;
+
+identifier_list
+	::= IDENTIFIER:i
+		{: RESULT = new TIdentifierList(i); :}
+	| identifier_list:il COMMA:c IDENTIFIER:i
+		{: RESULT = new TIdentifierList(il, c, i); :}
+	;
+
+type_name
+	::= specifier_qualifier_list:sql abstract_declarator:ad
+		{: RESULT = new TTypeName(sql, ad); :}
+	| specifier_qualifier_list:sql
+		{: RESULT = new TTypeName(sql); :}
+	;
+
+abstract_declarator
+	::= pointer_comprehension:p direct_abstract_declarator:dad
+		{: RESULT = new TAbstractDeclarator(p, dad); :}
+	| pointer_comprehension:p
+		{: RESULT = new TAbstractDeclarator(p); :}
+	| direct_abstract_declarator:dad
+		{: RESULT = new TAbstractDeclarator(dad); :}
+	;
+
+direct_abstract_declarator
+	::= PAR_LEFT:pl abstract_declarator:ad PAR_RIGHT:pr
+		{: RESULT = new TDirectAbstractDeclaratorAD(pl, ad, pr); :}
+		
+	| BRACKET_LEFT:bl BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, br); :}
+	| BRACKET_LEFT:bl MUL_OP:m BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, m, br); :}
+	| BRACKET_LEFT:bl STATIC:s type_qualifier_list:tql assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, s, tql, ae, br); :}
+	| BRACKET_LEFT:bl STATIC:s assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, s, ae, br); :}
+	| BRACKET_LEFT:bl type_qualifier_list:tql STATIC:s assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, tql, s, ae, br); :}
+	| BRACKET_LEFT:bl type_qualifier_list:tql assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, tql, ae, br); :}
+	| BRACKET_LEFT:bl type_qualifier_list:tql BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, tql, br); :}
+	| BRACKET_LEFT:bl assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(bl, ae, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl MUL_OP:m BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, m, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl STATIC:s type_qualifier_list:tql assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, s, tql, ae, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl STATIC:s assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, s, ae, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl type_qualifier_list:tql assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, tql, ae, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl type_qualifier_list:tql STATIC:s assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, tql, s, ae, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl type_qualifier_list:tql BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, tql, br); :}
+	| direct_abstract_declarator:dad BRACKET_LEFT:bl assignment_expression:ae BRACKET_RIGHT:br
+		{: RESULT = new TDirectAbstractDeclaratorA(dad, bl, ae, br); :}
+		
+	| PAR_LEFT:pl PAR_RIGHT:pr
+		{: RESULT = new TDirectAbstractDeclaratorF(pl, pr); :}
+	| PAR_LEFT:pl parameter_type_list:ptl PAR_RIGHT:pr
+		{: RESULT = new TDirectAbstractDeclaratorF(pl, ptl, pr); :}
+	| direct_abstract_declarator:dad PAR_LEFT:pl PAR_RIGHT:pr
+		{: RESULT = new TDirectAbstractDeclaratorF(dad, pl, pr); :}
+	| direct_abstract_declarator:dad PAR_LEFT:pl parameter_type_list:ptl PAR_RIGHT:pr
+		{: RESULT = new TDirectAbstractDeclaratorF(dad, pl, ptl, pr); :}
+		
+	// generator function abstract declarations
+	| GENERATOR:g
+		{: RESULT = new TDirectAbstractDeclaratorG(g); :}
+	| direct_abstract_declarator:dad GENERATOR:g
+		{: RESULT = new TDirectAbstractDeclaratorG(dad, g); :}
+	;
+
+initializer
+	::= BRACE_LEFT:bl initializer_list:il BRACE_RIGHT:br
+		{: RESULT = new TInitializer(bl, il, br); :}
+	| BRACE_LEFT:bl initializer_list:il COMMA:c BRACE_RIGHT:br
+		{: RESULT = new TInitializer(bl, il, c, br); :}
+	| assignment_expression:ae
+		{: RESULT = new TInitializer(ae); :}
+	;
+
+initializer_list
+	::= designation:d initializer:i
+		{: RESULT = new TInitializerList(new TDesignationInitializer(d, i)); :}
+	| initializer:i
+		{: RESULT = new TInitializerList(new TDesignationInitializer(i)); :}
+	| initializer_list:il COMMA:c designation:d initializer:i
+		{: RESULT = new TInitializerList(il, c, new TDesignationInitializer(d, i)); :}
+	| initializer_list:il COMMA:c initializer:i
+		{: RESULT = new TInitializerList(il, c, new TDesignationInitializer(i)); :}
+	;
+
+designation
+	::= designator_list:dl ASSIGN:a
+		{: RESULT = new TDesignation(dl, a); :}
+	;
+
+designator_list
+	::= designator:d
+		{: RESULT = new TDesignatorList(d); :}
+	| designator_list:dl designator:d
+		{: RESULT = new TDesignatorList(dl, d); :}
+	;
+
+designator
+	::= BRACKET_LEFT:bl constant_expression:ce BRACKET_RIGHT:br
+		{: RESULT = new TDesignator(bl, ce, br); :}
+	| DOT:d IDENTIFIER:i
+		{: RESULT = new TDesignator(d, i); :}
+	;
+
+static_assert_declaration
+	::= STATIC_ASSERT:sa PAR_LEFT:pl constant_expression:ce COMMA:c STRING_LITERAL:sl PAR_RIGHT:pr SEMICOLON:s
+		{: RESULT = new TStaticAssertDeclaration(sa, pl, ce, c, sl, pr, s); :}
+	;
+
+statement
+	::= labeled_statement:ls
+		{: RESULT = ls; :}
+	| {: parser.getMedium().newScope(); :} compound_statement:cs {: parser.getMedium().deleteScope();  RESULT = cs; :}
+	| expression_statement:es
+		{: RESULT = es; :}
+	| selection_statement:ss
+		{: RESULT = ss; :}
+	| iteration_statement:is
+		{: RESULT = is; :}
+	| jump_statement:js
+		{: RESULT = js; :}
+	;
+
+labeled_statement
+	::= IDENTIFIER:i COLON:c statement:s
+		{: RESULT = new TLabeledStatement(i, c, s); :}
+	| CASE:ca constant_expression:ce COLON:co statement:s
+		{: RESULT = new TLabeledStatement(ca, ce, co, s); :}
+	| DEFAULT:d COLON:c statement:s
+		{: RESULT = new TLabeledStatement(d, c, s); :}
+	;
+
+compound_statement
+	::= BRACE_LEFT:bl BRACE_RIGHT:br
+		{: RESULT = new TCompoundStatement(bl, br); :}
+	| BRACE_LEFT:bl block_item_list:bil BRACE_RIGHT:br
+		{: RESULT = new TCompoundStatement(bl, bil, br); :}
+	| BRACE_LEFT:bl block_item_list:bil finally_statement:fs BRACE_RIGHT:br
+		{: RESULT = new TCompoundStatement(bl, bil, fs, br); :}
+	;
+
+finally_statement
+	::= FINALLY:f statement:s
+		{: RESULT = new TFinallyStatement(f, s); :}
+	;
+
+block_item_list
+	::= block_item:bi
+		{: RESULT = new TBlockItemList(bi); :}
+	| block_item_list:bil block_item:bi
+		{: RESULT = new TBlockItemList(bil, bi); :}
+	;
+
+block_item
+	::= declaration:d
+		{: RESULT = new TBlockItemD(d); :}
+	| statement:s
+		{: RESULT = new TBlockItemS(s); :}
+	| error:e SEMICOLON:s
+		{: RESULT = new TBlockItemS(new TExpressionStatement(s)); :}
+	;
+
+expression_statement
+	::= SEMICOLON:s
+		{: RESULT = new TExpressionStatement(s); :}
+	| expression:e SEMICOLON:s
+		{: RESULT = new TExpressionStatement(e, s); :}
+	;
+
+selection_statement
+	::= IF:i PAR_LEFT:pl expression:e PAR_RIGHT:pr statement:s1 ELSE:el statement:s2
+		 {: RESULT = new TSelectionStatement(i, pl, e, pr, s1, el, s2); :}
+	| IF:i PAR_LEFT:pl expression:e PAR_RIGHT:pr statement:s
+		 {: RESULT = new TSelectionStatement(i, pl, e, pr, s); :}
+	| SWITCH:sw PAR_LEFT:pl expression:e PAR_RIGHT:pr statement:s
+		 {: RESULT = new TSelectionStatement(sw, pl, e, pr, s); :}
+	;
+
+iteration_statement
+	::= WHILE:w PAR_LEFT:pl expression:e PAR_RIGHT:pr statement:s
+		 {: RESULT = new TIterationStatementW(w, pl, e, pr, s); :}
+	| DO:d statement:s WHILE:w PAR_LEFT:pl expression:e PAR_RIGHT:pr SEMICOLON:se
+		 {: RESULT = new TIterationStatementD(d, s, w, pl, e, pr, se); :}
+	| FOR:f PAR_LEFT:pl expression_statement:es1 expression_statement:es2 PAR_RIGHT:pr statement:s
+		{: RESULT = new TIterationStatementF(f, pl, es1, es2, pr, s); :}
+	| FOR:f PAR_LEFT:pl expression_statement:es1 expression_statement:es2 expression:e PAR_RIGHT:pr statement:s
+		{: RESULT = new TIterationStatementF(f, pl, es1, es2, e, pr, s); :}
+	| FOR:f PAR_LEFT:pl declaration:d expression_statement:es PAR_RIGHT:pr statement:s
+		{: RESULT = new TIterationStatementF(f, pl, d, es, pr, s); :}
+	| FOR:f PAR_LEFT:pl declaration:d expression_statement:es expression:e PAR_RIGHT:pr statement:s
+		{: RESULT = new TIterationStatementF(f, pl, d, es, e, pr, s); :}
+	;
+
+jump_statement
+	::= GOTO:g IDENTIFIER:i SEMICOLON:s
+		{: RESULT = new TJumpStatement(g, i, s); :}
+	| CONTINUE:c SEMICOLON:s
+		{: RESULT = new TJumpStatement(c, s); :}
+	| BREAK:b SEMICOLON:s
+		{: RESULT = new TJumpStatement(b, s); :}
+	| RETURN:r SEMICOLON:s
+		{: RESULT = new TJumpStatement(r, s); :}
+	| RETURN:r assignment_expression:e SEMICOLON:s
+		{: RESULT = new TJumpStatement(r, e, s); :}
+	
+	// extension statements
+	| WITH:w assignment_expression:e SEMICOLON:s
+		{: RESULT = new TJumpStatement(w, e, s); :}
+	| CUT:c SEMICOLON:s
+		{: RESULT = new TJumpStatement(c, s); :}
+	| YIELD:y assignment_expression:e SEMICOLON:s
+		{: RESULT = new TJumpStatement(y, e, s); :}
+	| YIELD:y SEMICOLON:s
+		{: RESULT = new TJumpStatement(y, s); :}
+	;
+
+translation_unit
+	::= external_declaration:ed
+		{: RESULT = new TTranslationUnit(ed); :}
+	| translation_unit:tu external_declaration:ed
+		{: RESULT = new TTranslationUnit(tu, ed); :}
+	;
+
+external_declaration
+	::= function_definition:fd
+		{: RESULT = new TExternalDeclarationFD(fd); :}
+	| declaration:d
+		{: RESULT = new TExternalDeclarationD(d); :}
+	| error:e declaration:d
+		{: RESULT = new TExternalDeclarationD(d); :}
+	| error:e function_definition:fd
+		{: RESULT = new TExternalDeclarationFD(fd); :}
+	| error:e compound_statement:cs
+		{: RESULT = new TExternalDeclarationFD(new TFunctionDefinition(new TDeclarationSpecifiers(new TTypeSpecifier(new TSVoid())), new TDeclarator(new TDirectDeclaratorI(new TSIdentifier(""))), cs)); :}
+	| error:e SEMICOLON:s
+		{: RESULT = new TExternalDeclarationD(new TDeclarationDS(new TDeclarationSpecifiers(new TTypeSpecifier(new TSVoid())), s)); :}
+	;
+
+function_definition
+	::= declaration_specifiers:ds declarator:d declaration_list:dl {: parser.getMedium().newScope(); :} compound_statement:cs {: parser.getMedium().deleteScope();  RESULT = new TFunctionDefinition(ds, d, dl, cs); :}
+	| declaration_specifiers:ds declarator:d {: parser.getMedium().newScope(); :} compound_statement:cs {: parser.getMedium().deleteScope();  RESULT = new TFunctionDefinition(ds, d, cs); :}
+	;
+
+declaration_list
+	::= declaration:d
+		{: RESULT = new TDeclarationList(d); :}
+	| declaration_list:dl declaration:d
+		{: RESULT = new TDeclarationList(dl, d); :}
+	;
+
+
