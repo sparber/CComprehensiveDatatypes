@@ -1,0 +1,2 @@
+# CComprehensiveDatatypes
+Syntax Extension for the programming language C: Comprehensive datatypes are a new variable type, representing a variable number of values (possibilities) and pretending that there is only one value. This way an implicit loop is defined, bounded by the scope of the variable declaration, iterating over the variable's values. For initializing a comprehensive variable, generators can be used.
